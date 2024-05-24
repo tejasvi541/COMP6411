@@ -2,6 +2,13 @@ import socketserver
 import os
 import re
 
+STATUS_CODES = {
+    "OK": 200,
+    "NOT_FOUND": 404,
+    "BAD_REQUEST": 400,
+    "CONFLICT": 409
+}
+
 class CustomerDB:
     def __init__(self, filename):
         self.filename = filename
@@ -18,18 +25,6 @@ class CustomerDB:
                     if len(fields) != 4:
                         continue
                     name, age, address, phone = fields
-                    if not re.match('^[a-zA-Z]+$', name): # To match only alphabets
-                        print(f"Invalid name in record: {line}")
-                        continue
-                    if age and not (age.isdigit() and 1 <= int(age) <= 120):
-                        print(f"Invalid age in record: {line}")
-                        continue
-                    if address and not re.match('^[a-zA-Z0-9 .-]+$', address): # To match only alphabets, numbers, space, dot and hyphen
-                        print(f"Invalid address in record: {line}")
-                        continue
-                    if phone and not re.match('^(\d{3} \d{3}-\d{4}|\d{3}-\d{4})$', phone): # To match phone number in format XXX XXX-XXXX or XXX-XXXX
-                        print(f"Invalid phone number in record: {line}")
-                        continue
                     self.db[name.lower()] = (name, age, address, phone)
 
     def find_customer(self, name):
@@ -37,34 +32,58 @@ class CustomerDB:
 
     def add_customer(self, name, age, address, phone):
         if name.lower() in self.db:
-            return False
+            return STATUS_CODES['CONFLICT']
+        if not re.match('^[a-zA-Z]+$', name): # To match only alphabets
+            print(f"Invalid name in record")
+            return STATUS_CODES['BAD_REQUEST']
+        if age and not (age.isdigit() and 1 <= int(age) <= 120):
+            print(f"Invalid age in record")
+            return STATUS_CODES['BAD_REQUEST']
+        if address and not re.match('^[a-zA-Z0-9 .-]+$', address): # To match only alphabets, numbers, space, dot and hyphen
+            print(f"Invalid address in record")
+            return STATUS_CODES['BAD_REQUEST']
+        if phone and not re.match('^(\d{3} \d{3}-\d{4}|\d{3}-\d{4})$', phone): # To match phone number in format XXX XXX-XXXX or XXX-XXXX
+            print(f"Invalid phone number in record")
+            return STATUS_CODES['BAD_REQUEST']
         self.db[name.lower()] = (name, age, address, phone)
-        self.write_db()
-        return True
+        with open(self.filename, 'a') as f:
+            f.write(f'{name}|{age}|{address}|{phone}\n')
+        return STATUS_CODES['OK']
+        
 
     def delete_customer(self, name):
         if name.lower() in self.db:
             del self.db[name.lower()]
-            self.write_db()
-            return True
+            self.write_db({name: name.lower()})
+            return STATUS_CODES['OK']
         else:
-            return False
+            return STATUS_CODES['NOT_FOUND']
 
     def update_customer(self, name, age=None, address=None, phone=None):
         if name.lower() not in self.db:
-            return False
+            return STATUS_CODES['NOT_FOUND']
+        if not re.match('^[a-zA-Z]+$', name): # To match only alphabets
+            print(f"Invalid name in record")
+            return STATUS_CODES['BAD_REQUEST']
+        if age and not (age.isdigit() and 1 <= int(age) <= 120):
+            print(f"Invalid age in record")
+            return STATUS_CODES['BAD_REQUEST']
+        if address and not re.match('^[a-zA-Z0-9 .-]+$', address): # To match only alphabets, numbers, space, dot and hyphen
+            print(f"Invalid address in record")
+            return STATUS_CODES['BAD_REQUEST']
+        if phone and not re.match('^(\d{3} \d{3}-\d{4}|\d{3}-\d{4})$', phone): # To match phone number in format XXX XXX-XXXX or XXX-XXXX
+            print(f"Invalid phone number in record")
+            return STATUS_CODES['BAD_REQUEST']
         old_name, old_age, old_address, old_phone = self.db[name.lower()]
         self.db[name.lower()] = (name, age or old_age, address or old_address, phone or old_phone)
-        self.write_db()
-        return True
+        self.write_db({old_name: (name, age, address, phone)})
+        return STATUS_CODES['OK']
 
     def print_report(self):
         return sorted(self.db.values(), key=lambda x: x[0])
 
-    def write_db(self):
-        with open(self.filename, 'w') as f:
-            for name, (name, age, address, phone) in self.db.items():
-                f.write(f'{name}|{age}|{address}|{phone}\n')
+    # def write_db(self, changed_data):
+    #     if len(changed_data[0]) > 1:
 
 class ServerHandler(socketserver.BaseRequestHandler):
     def handle(self):
@@ -88,23 +107,29 @@ class ServerHandler(socketserver.BaseRequestHandler):
             else:
                 return 'Customer not found'
         elif command == 'add':
-            if self.server.db.add_customer(*args):
+            if self.server.db.add_customer(*args)==STATUS_CODES['OK']:
                 return 'Customer added'
-            else:
+            elif self.server.db.add_customer(*args)==STATUS_CODES['CONFLICT']:
                 return 'Customer already exists'
+            else:
+                return STATUS_CODES['BAD_REQUEST'] + 'Invalid data'
         elif command == 'delete':
-            if self.server.db.delete_customer(*args):
+            if self.server.db.delete_customer(*args) == STATUS_CODES['OK']:
                 return 'Customer deleted'
-            else:
+            elif self.server.db.delete_customer(*args) == STATUS_CODES['NOT_FOUND']:
                 return 'Customer not found'
+            else:
+                return STATUS_CODES['BAD_REQUEST'] + 'Invalid data'
         elif command == 'update':
-            if self.server.db.update_customer(*args):
+            if self.server.db.update_customer(*args)==STATUS_CODES['OK']:
                 return 'Customer updated'
-            else:
+            elif self.server.db.update_customer(*args)==STATUS_CODES['NOT_FOUND']:
                 return 'Customer not found'
+            else:
+                return STATUS_CODES['BAD_REQUEST'] + 'Invalid data'
         elif command == 'report':
             report = self.server.db.print_report()
-            return '\n'.join('|'.join(record) for record in report)
+            return "\n*** DateBase Contents ***\n"+'\n'.join('|'.join(record) for record in report)
         else:
             return 'Invalid command'
 
