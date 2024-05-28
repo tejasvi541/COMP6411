@@ -114,21 +114,21 @@ class ServerHandler(socketserver.BaseRequestHandler):
             elif self.server.db.add_customer(*args)==STATUS_CODES['CONFLICT']:
                 return 'Customer already exists'
             else:
-                return f'{STATUS_CODES['BAD_REQUEST']}' + 'Invalid data'
+                return 'Invalid data'
         elif command == 'delete':
             if self.server.db.delete_customer(*args) == STATUS_CODES['OK']:
                 return 'Customer deleted'
             elif self.server.db.delete_customer(*args) == STATUS_CODES['NOT_FOUND']:
                 return 'Customer not found'
             else:
-                return f'{STATUS_CODES['BAD_REQUEST']}' + 'Invalid data'
+                return 'Invalid data'
         elif command == 'update':
             if self.server.db.update_customer(*args)==STATUS_CODES['OK']:
                 return 'Customer updated'
             elif self.server.db.update_customer(*args)==STATUS_CODES['NOT_FOUND']:
                 return 'Customer not found'
             else:
-                return f'{STATUS_CODES['BAD_REQUEST']}' + 'Invalid data'
+                return 'Invalid data'
         elif command == 'report':
             report = self.server.db.print_report()
             return "\n*** DateBase Contents ***\n"+'\n'.join('|'.join(record) for record in report)

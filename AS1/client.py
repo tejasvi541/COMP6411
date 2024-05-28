@@ -74,23 +74,23 @@ def main():
                     name = input('Enter customer name: ').strip()
                     age = input('Enter new age: ').strip()
                     flag = not (validate_name(name) and validate_age(age))
-                response = send_request(sock, f'update|{name}|{age}')
+                response = send_request(sock, f'update|{name.lower()}|{age}')
                 print('Server response:', response)
             elif choice == '5':
                 flag = True
                 while flag:
                     name = input('Enter customer name: ').strip()
-                    age = input('Enter new age: ').strip()
-                    flag = not (validate_name(name) and validate_address(age))
-                response = send_request(sock, f'update|{name}||{address}')
+                    address = input('Enter new address: ').strip()
+                    flag = not (validate_name(name) and validate_address(address))
+                response = send_request(sock, f'update|{name.lower()}||{address}')
                 print('Server response:', response)
             elif choice == '6':
                 flag = True
                 while flag:
                     name = input('Enter customer name: ').strip()
-                    age = input('Enter new age: ').strip()
-                    flag = not (validate_name(name) and validate_phone_number(age))
-                response = send_request(sock, f'update|{name}|||{phone}')
+                    phone = input('Enter new phone number: ').strip()
+                    flag = not (validate_name(name) and validate_phone_number(phone))
+                response = send_request(sock, f'update|{name.lower()}|||{phone}')
                 print('Server response:', response)
             elif choice == '7':
                 response = send_request(sock, 'report')
