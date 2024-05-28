@@ -7,7 +7,29 @@ STATUS_CODES = {
     "BAD_REQUEST": 400,
     "CONFLICT": 409
 }
+def validate_name(name):
+    if not re.match(r"^[a-zA-Z]+$", name):
+        print("The name must be present and consist only of alphabetic characters. Please try again.")
+        return False
+    return True
 
+def validate_age(age):
+    if age == "" or (age.isdigit() and 1 <= int(age) <= 120):
+        return True
+    print("Age must be an integer between 1 and 120. Please try again.")
+    return False
+
+def validate_address(address):
+    if address == "" or re.match(r"^[a-zA-Z0-9\s.-]*$", address.strip()):
+        return True
+    print("If address is present, it can only contain alphanumeric characters, spaces, periods, or dashes. Please try again.")
+    return False
+
+def validate_phone_number(phone_number):
+    if phone_number == "" or re.match(r'^(\d{3}\s\d{3}-\d{4}|\d{3}-\d{4}){0,1}$', phone_number.strip()):
+        return True
+    print("Invalid phone number format. Please try again.")
+    return False
 class CustomerDB:
     def __init__(self, filename):
         self.filename = filename
@@ -22,9 +44,13 @@ class CustomerDB:
                     fields = line.split('|')
                     fields = [field.strip() for field in fields]
                     if len(fields) != 4:
+                        print(f"Record Skipped Invalid record: {line}")
                         continue
                     name, age, address, phone = fields
-                    self.db[name.lower()] = (name, age, address, phone)
+                    if(not(validate_name(name) and validate_age(age) and  validate_address(address) and  validate_phone_number(phone))):
+                        print(f"Record Skipped Invalid record: {line}")
+                        continue
+                    self.db[name.lower()] = (name.lower(), age, address, phone)
 
     def find_customer(self, name)->tuple:
         return self.db.get(name.lower(), None)
@@ -41,19 +67,16 @@ class CustomerDB:
         if address and not re.match('^[a-zA-Z0-9 .-]+$', address): # To match only alphabets, numbers, space, dot and hyphen
             print(f"Invalid address in record")
             return STATUS_CODES['BAD_REQUEST']
-        if phone and not re.match('^(\d{3} \d{3}-\d{4}|\d{3}-\d{4})$', phone): # To match phone number in format XXX XXX-XXXX or XXX-XXXX
+        if phone and not re.match('^(\d{3}\s\d{3}-\d{4}|\d{3}-\d{4}){0,1}$', phone): # To match phone number in format XXX XXX-XXXX or XXX-XXXX
             print(f"Invalid phone number in record")
             return STATUS_CODES['BAD_REQUEST']
-        self.db[name.lower()] = (name, age, address, phone)
-        with open(self.filename, 'a') as f:
-            f.write(f'{name}|{age}|{address}|{phone}\n')
+        self.db[name.lower()] = (name.lower(), age, address, phone)
         return STATUS_CODES['OK']
         
 
     def delete_customer(self, name)->int:
         if name.lower() in self.db:
             del self.db[name.lower()]
-            self.write_db()
             return STATUS_CODES['OK']
         else:
             return STATUS_CODES['NOT_FOUND']
@@ -74,17 +97,11 @@ class CustomerDB:
             print(f"Invalid phone number in record")
             return STATUS_CODES['BAD_REQUEST']
         old_name, old_age, old_address, old_phone = self.db[name.lower()]
-        self.db[name.lower()] = (name, age or old_age, address or old_address, phone or old_phone)
-        self.write_db()
+        self.db[name.lower()] = (name.lower(), age or old_age, address or old_address, phone or old_phone)
         return STATUS_CODES['OK']
 
     def print_report(self)->list:
         return sorted(self.db.values(), key=lambda x: x[0])
-
-    def write_db(self)->None:
-        with open(self.filename, 'w') as f:
-            for name, record in self.db.items():
-                f.write(f'{record[0]}|{record[1]}|{record[2]}|{record[3]}\n')
 
 class ServerHandler(socketserver.BaseRequestHandler):
     def handle(self)->None:

@@ -26,7 +26,7 @@ def validate_address(address):
     return False
 
 def validate_phone_number(phone_number):
-    if phone_number == "" or re.match(r'^(\d{3} \d{3}-\d{4}|\d{3}-\d{4})$', phone_number.strip()):
+    if phone_number == "" or re.match(r'^(\d{3}\s\d{3}-\d{4}|\d{3}-\d{4}){0,1}$', phone_number.strip()):
         return True
     print("Invalid phone number format. Please try again.")
     return False
