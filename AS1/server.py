@@ -1,5 +1,4 @@
 import socketserver
-import os
 import re
 
 STATUS_CODES = {
@@ -15,7 +14,7 @@ class CustomerDB:
         self.db = {}
         self.load_db()
 
-    def load_db(self):
+    def load_db(self)->None:
         with open(self.filename, 'r') as f:
             for line in f:
                 line = line.strip()
@@ -27,10 +26,10 @@ class CustomerDB:
                     name, age, address, phone = fields
                     self.db[name.lower()] = (name, age, address, phone)
 
-    def find_customer(self, name):
+    def find_customer(self, name)->tuple:
         return self.db.get(name.lower(), None)
 
-    def add_customer(self, name, age, address, phone):
+    def add_customer(self, name, age, address, phone)->int:
         if name.lower() in self.db:
             return STATUS_CODES['CONFLICT']
         if not re.match('^[a-zA-Z]+$', name): # To match only alphabets
@@ -51,15 +50,15 @@ class CustomerDB:
         return STATUS_CODES['OK']
         
 
-    def delete_customer(self, name):
+    def delete_customer(self, name)->int:
         if name.lower() in self.db:
             del self.db[name.lower()]
-            self.write_db({name: name.lower()})
+            self.write_db()
             return STATUS_CODES['OK']
         else:
             return STATUS_CODES['NOT_FOUND']
 
-    def update_customer(self, name, age=None, address=None, phone=None):
+    def update_customer(self, name, age=None, address=None, phone=None)->int:
         if name.lower() not in self.db:
             return STATUS_CODES['NOT_FOUND']
         if not re.match('^[a-zA-Z]+$', name): # To match only alphabets
@@ -76,17 +75,19 @@ class CustomerDB:
             return STATUS_CODES['BAD_REQUEST']
         old_name, old_age, old_address, old_phone = self.db[name.lower()]
         self.db[name.lower()] = (name, age or old_age, address or old_address, phone or old_phone)
-        self.write_db({old_name: (name, age, address, phone)})
+        self.write_db()
         return STATUS_CODES['OK']
 
-    def print_report(self):
+    def print_report(self)->list:
         return sorted(self.db.values(), key=lambda x: x[0])
 
-    # def write_db(self, changed_data):
-    #     if len(changed_data[0]) > 1:
+    def write_db(self)->None:
+        with open(self.filename, 'w') as f:
+            for name, record in self.db.items():
+                f.write(f'{record[0]}|{record[1]}|{record[2]}|{record[3]}\n')
 
 class ServerHandler(socketserver.BaseRequestHandler):
-    def handle(self):
+    def handle(self)->None:
         while True:
             self.data = self.request.recv(1024).strip().decode() # Receive data from client 1024 bytes at a time, also decodes it
             print("{} wrote:".format(self.client_address[0]))
@@ -95,8 +96,9 @@ class ServerHandler(socketserver.BaseRequestHandler):
                 break
             response = self.process_request(self.data)
             self.request.sendall(response.encode())
+            
 
-    def process_request(self, request):
+    def process_request(self, request)->str:
         parts = request.split('|')
         command = parts[0]
         args = parts[1:]
@@ -112,21 +114,21 @@ class ServerHandler(socketserver.BaseRequestHandler):
             elif self.server.db.add_customer(*args)==STATUS_CODES['CONFLICT']:
                 return 'Customer already exists'
             else:
-                return STATUS_CODES['BAD_REQUEST'] + 'Invalid data'
+                return f'{STATUS_CODES['BAD_REQUEST']}' + 'Invalid data'
         elif command == 'delete':
             if self.server.db.delete_customer(*args) == STATUS_CODES['OK']:
                 return 'Customer deleted'
             elif self.server.db.delete_customer(*args) == STATUS_CODES['NOT_FOUND']:
                 return 'Customer not found'
             else:
-                return STATUS_CODES['BAD_REQUEST'] + 'Invalid data'
+                return f'{STATUS_CODES['BAD_REQUEST']}' + 'Invalid data'
         elif command == 'update':
             if self.server.db.update_customer(*args)==STATUS_CODES['OK']:
                 return 'Customer updated'
             elif self.server.db.update_customer(*args)==STATUS_CODES['NOT_FOUND']:
                 return 'Customer not found'
             else:
-                return STATUS_CODES['BAD_REQUEST'] + 'Invalid data'
+                return f'{STATUS_CODES['BAD_REQUEST']}' + 'Invalid data'
         elif command == 'report':
             report = self.server.db.print_report()
             return "\n*** DateBase Contents ***\n"+'\n'.join('|'.join(record) for record in report)
