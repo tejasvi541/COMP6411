@@ -1,17 +1,11 @@
 (ns menu
-  (:require [db :as db]))
+  (:require [clojure.string :as string]
+            [db :as db]))
 
-(defn display-table [table]
-  (doseq [record table]
-    (println record)))
+(defn clear-screen []
+  (print "\u001b[2J"))
 
-(defn display-sales-table []
-  (doseq [record db/sales]
-    (let [customer (db/get-customer (second record))
-          product (db/get-product (nth record 2))]
-      (println (list (first record) (second customer) (second product) (last record))))))
-
-(defn menu []
+(defn prompt []
   (println "*** Sales Menu ***")
   (println "------------------")
   (println "1. Display Customer Table")
@@ -19,21 +13,47 @@
   (println "3. Display Sales Table")
   (println "4. Total Sales for Customer")
   (println "5. Total Count for Product")
-  (println "6. Exit")
+  (println "6. Exit\n")
   (print "Enter an option? ")
-  (flush)
+  (flush))
+
+(defn get-option []
   (let [option (read-line)]
-    (cond
-      (= option "1") (display-table db/customers)
-      (= option "2") (display-table db/products)
-      (= option "3") (display-sales-table)
-      (= option "4") (do (print "Enter customer name: ")(flush)
-                          (println (db/total-sales-for-customer (read-line))))
-      (= option "5") (do (print "Enter product description: ")(flush)
-                          (println (db/total-count-for-product (read-line))))
-      (= option "6") (println "Good Bye")
-      :else (println "Invalid option")))
-  (unless (= option "6") (menu)))
+    (if (some #(= option %) ["1" "2" "3" "4" "5" "6"])
+      (Integer. option)
+      (do (println "Invalid option, try again.")
+          (recur)))))
+
+(defn main-loop [customers products sales]
+  (loop []
+    (clear-screen)
+    (prompt)
+    (let [option (get-option)]
+      (case option
+        1 (do (db/display-customer-table customers)
+              (read-line))
+        2 (do (db/display-product-table products)
+              (read-line))
+        3 (do (db/display-sales-table sales customers products)
+              (read-line))
+        4 (do (print "Enter customer name: ")
+              (flush)
+              (let [name (read-line)]
+                (db/total-sales-for-customer name customers sales products))
+              (read-line))
+        5 (do (print "Enter product name: ")
+              (flush)
+              (let [name (read-line)]
+                (db/total-count-for-product name products sales))
+              (read-line))
+        6 (do (println "Good Bye") (System/exit 0))))
+    (recur)))
 
 (defn -main []
-  (menu))
+  (let [customers (db/build-customer-table)
+        products (db/build-product-table)
+        sales (db/build-sales-table)]
+    (main-loop customers products sales)))
+
+;; To run the program directly
+(-main)
