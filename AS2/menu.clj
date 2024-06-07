@@ -2,51 +2,50 @@
   (:require [clojure.string :as string]
             [db :as db]))
 
-(defn clear-screen []
+(defn display-Clean []
   (print "\u001b[2J"))
 
 (defn prompt []
   (println "*** Sales Menu ***")
-  (println "------------------")
   (println "1. Display Customer Table")
   (println "2. Display Product Table")
   (println "3. Display Sales Table")
   (println "4. Total Sales for Customer")
   (println "5. Total Count for Product")
-  (println "6. Exit\n")
+  (println "6. Exit")
   (print "Enter an option? ")
   (flush))
 
-(defn get-option []
+(defn select []
   (let [option (read-line)]
     (if (some #(= option %) ["1" "2" "3" "4" "5" "6"])
       (Integer. option)
-      (do (println "Invalid option, try again.")
+      (do (println "Invalid request. Please try again.")
           (recur)))))
 
 (defn main-loop [customers products sales]
   (loop []
-    (clear-screen)
+    (display-Clean)
     (prompt)
-    (let [option (get-option)]
+    (let [option (select)]
       (case option
         1 (do (db/display-customer-table customers)
-              (read-line))
+              (println "Press Enter to continue...") (read-line))
         2 (do (db/display-product-table products)
-              (read-line))
+              (println "Press Enter to continue...") (read-line))
         3 (do (db/display-sales-table sales customers products)
-              (read-line))
+              (println "Press Enter to continue...") (read-line))
         4 (do (print "Enter customer name: ")
               (flush)
               (let [name (read-line)]
                 (db/total-sales-for-customer name customers sales products))
-              (read-line))
+              (println "Press Enter to continue...") (read-line))
         5 (do (print "Enter product name: ")
               (flush)
               (let [name (read-line)]
                 (db/total-count-for-product name products sales))
-              (read-line))
-        6 (do (println "Good Bye") (System/exit 0))))
+              (println "Press Enter to continue...") (read-line))
+        6 (do (println "Byee....") (System/exit 0))))
     (recur)))
 
 (defn -main []
