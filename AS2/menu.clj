@@ -6,10 +6,10 @@
   (print "\u001b[2J"))
 
 (defn prompt []
-  (println "*** Sales Menu ***")
-  (println "1. Display Customer Table")
-  (println "2. Display Product Table")
-  (println "3. Display Sales Table")
+  (println "***** Sales Menu *****")
+  (println "1. Display Customers")
+  (println "2. Display Products")
+  (println "3. Display Sales")
   (println "4. Total Sales for Customer")
   (println "5. Total Count for Product")
   (println "6. Exit")
@@ -54,5 +54,4 @@
         sales (db/build-sales-table)]
     (main-loop customers products sales)))
 
-;; To run the program directly
 (-main)

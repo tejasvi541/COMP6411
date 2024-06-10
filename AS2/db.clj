@@ -27,42 +27,69 @@
          [(Integer. salesID) [(Integer. custID) (Integer. prodID) (Integer. itemCount)]])
        (load-data "sales.txt")))
 
+(defn display-customer-table-helper [sorted-customers]
+  (when (seq sorted-customers)
+    (let [[id details] (first sorted-customers)]
+      (println id ":" details)
+      (recur (rest sorted-customers)))))
+
 (defn display-customer-table [customers]
-  (doseq [[id details] (sort-by first customers)]
-    (println id ":" details)))
+  (display-customer-table-helper (sort-by first customers)))
+
+(defn display-product-table-helper [sorted-products]
+  (when (seq sorted-products)
+    (let [[id details] (first sorted-products)]
+      (println id ":" details)
+      (recur (rest sorted-products)))))
 
 (defn display-product-table [products]
-  (doseq [[id details] (sort-by first products)]
-    (println id ":" details)))
+  (display-product-table-helper (sort-by first products)))
+
+(defn display-sales-table-helper [sorted-sales customers products]
+  (when (seq sorted-sales)
+    (let [[id [custID prodID itemCount]] (first sorted-sales)]
+      (println id ":" [(first (customers custID)) (first (products prodID)) (str itemCount)])
+      (recur (rest sorted-sales) customers products))))
 
 (defn display-sales-table [sales customers products]
-  (doseq [[id [custID prodID itemCount]] (sort-by first sales)]
-    (println id ":" [(first (customers custID)) (first (products prodID)) (str itemCount)])))
+  (display-sales-table-helper (sort-by first sales) customers products))
+
+(defn find-customer-id [customer-name customers]
+  (some (fn [[id [name _ _]]]
+          (when (= name customer-name) id))
+        customers))
+
+(defn calculate-total-sales [customer-id sales products]
+  (reduce (fn [acc [_ [custID prodID itemCount]]]
+            (if (= custID customer-id)
+              (+ acc (* itemCount (second (products prodID))))
+              acc))
+          0
+          sales))
 
 (defn total-sales-for-customer [customer-name customers sales products]
-  (let [customer-id (some (fn [[id [name _ _]]]
-                            (when (= name customer-name) id))
-                          customers)]
+  (let [customer-id (find-customer-id customer-name customers)]
     (if customer-id
-      (let [total (reduce (fn [acc [_ [custID prodID itemCount]]]
-                            (if (= custID customer-id)
-                              (+ acc (* itemCount (second (products prodID))))
-                              acc))
-                          0
-                          sales)]
+      (let [total (calculate-total-sales customer-id sales products)]
         (println customer-name ": $" total))
       (println "Customer not found"))))
 
+(defn find-product-id [product-name products]
+  (some (fn [[id [description _]]]
+          (when (= description product-name) id))
+        products))
+
+(defn calculate-total-count [product-id sales]
+  (reduce (fn [acc [_ [custID prodID itemCount]]]
+            (if (= prodID product-id)
+              (+ acc itemCount)
+              acc))
+          0
+          sales))
+
 (defn total-count-for-product [product-name products sales]
-  (let [product-id (some (fn [[id [description _]]]
-                           (when (= description product-name) id))
-                         products)]
+  (let [product-id (find-product-id product-name products)]
     (if product-id
-      (let [total (reduce (fn [acc [_ [custID prodID itemCount]]]
-                            (if (= prodID product-id)
-                              (+ acc itemCount)
-                              acc))
-                          0
-                          sales)]
+      (let [total (calculate-total-count product-id sales)]
         (println product-name ": " total))
       (println "Product not found"))))
