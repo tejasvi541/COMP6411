@@ -7,6 +7,7 @@
 
 (defn prompt []
   (println "***** Sales Menu *****")
+  (println "_________________________")
   (println "1. Display Customers")
   (println "2. Display Products")
   (println "3. Display Sales")
