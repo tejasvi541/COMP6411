@@ -1,3 +1,5 @@
 {sam,26}.
 {jill,12}.
 {ahmad,17}.
+{mia,20}.
+{khalifa,15}.

@@ -1,59 +1,94 @@
 -module(player).
--export([start/4]).
+-export([start/4, player_engine/4]).
 
-start(Name, Credits, Master, Players) ->
-    spawn(fun() -> loop(Name, Credits, Master, Players) end).
+start(Name, Credits, MasterProcess,Players) ->
+    register(Name, self()),
+    player_engine(Name, Credits, MasterProcess,Players).
 
-loop(Name, 0, Master, _Players) ->
-    Master ! {disqualified, Name},
-    io:format("Player ~p has been disqualified~n", [Name]),
-    receive stop -> ok end;
-
-loop(Name, Credits, Master, Players) ->
-    Master ! {register, self(), Name, Credits},
+player_engine(Name, Credits, MasterProcess,Players) ->
     receive
-        {game_request, GameID, Opponent} ->
-            % io:format("Player ~p received game request ~p from ~p~n", [Name, GameID, Opponent]),
-            if Credits > 0 ->
-                self() ! {game_confirmed, GameID, Opponent}
-            end,
-            loop(Name, Credits, Master, Players);
-        {game_confirmed, GameID, Opponent} ->
-            io:format("+ [~p] new game for ~p -> ~p ~n", [GameID, Name, Opponent]),
-            Move = random_move(),
-            Opp_Move = random_move(),
-            Master ! {move, GameID, Name, Move, Opponent, Opp_Move},
-            loop(Name, Credits - 1, Master, Players);
-        {move_result, GameID, Result} ->
-            case Result of
-                lose ->
-                    loop(Name, Credits - 1, Master, Players);
-                tie ->
-                    Move = random_move(),
-                    Master ! {move, GameID, Name, Move},
-                    loop(Name, Credits, Master, Players);
-                win ->
-                    loop(Name, Credits, Master, Players)
+        {play_game, Opponent} ->
+            if Credits =< 0 ->
+                MasterProcess ! {player_disqualified, Name};
+            true ->
+                Opponent ! {invitation, self(), Name},
+                player_engine(Name, Credits, MasterProcess,Players)
             end;
-        stop ->
-            io:format("Player ~p stopping~n", [Name]),
-            ok
-    after 10 + rand:uniform(91) ->
-            % Make a new game request
-            RandomPlayer = random_player(Name, Players),
-            io:format("Player ~p requesting new game with ~p~n", [Name, RandomPlayer]),
-            Master ! {new_game, self(), Name, RandomPlayer},
-            loop(Name, Credits, Master, Players)
+
+        {invitation, OpponentPid, OpponentName} ->
+            if Credits =< 0 ->
+                OpponentPid ! {game_rejected, self(), Name};
+            true ->
+                MasterProcess ! {game_request, self(), Name, OpponentPid, OpponentName}
+            end,
+            player_engine(Name, Credits, MasterProcess,Players);
+
+        {play_game_with_gameid, GameId} ->
+            Move = lists:nth(rand:uniform(3), [rock, paper, scissors]),            
+            MasterProcess ! {match_move, GameId, self(), Move},
+            player_engine(Name, Credits, MasterProcess,Players);
+
+        {main_result, GameId, Result, P1Name, M1, P2Name, M2, LostPName, MoveRecords} ->
+            UpdatedCredits = if Result =:= lost -> Credits - 1; true -> Credits end,
+            RelevantGames = lists:filter(fun({GID, {_,_}, {_,_}}) -> GID == GameId end, MoveRecords),
+            NumOfGames = length(RelevantGames),
+
+            case NumOfGames > 1 of
+                true ->
+                    GameDetailsList = lists:foldl(
+                        fun({_, {P1, P1M}, {P2, P2M}}, Acc) ->
+                            {_, Name1} = lookup_name_by_process_id(P1),
+                            {_, Name2} = lookup_name_by_process_id(P2),
+                            GameDetailString = io_lib:format("~p:~p -> ~p:~p, ", [Name2, P2M, Name1, P1M]),
+                            [GameDetailString | Acc]
+                        end,
+                        [],
+                        RelevantGames
+                    ),
+                    FlattenedGameDetails = lists:flatten(GameDetailsList),
+                    io:format("$ (~p) ~s = ~p ~p [~p Credits Remaining]~n", [GameId, FlattenedGameDetails, LostPName, Result, Credits]);
+                false ->
+                    io:format("$ (~p) ~p:~p -> ~p:~p = ~p ~p [~p Credits Left]~n", [GameId, P2Name, M2, P1Name, M1, LostPName, Result, UpdatedCredits])
+            end,
+
+            case UpdatedCredits =< 0 of
+                true -> io:format("- (~p) Player ~p has been removed for insufficient credits~n", [GameId, Name]);
+                false -> ok
+            end,
+
+            MasterProcess ! {update_players, LostPName, UpdatedCredits},
+            player_engine(Name, UpdatedCredits, MasterProcess, Players);
+
+
+        {game_tied, GameId} ->
+            Move = lists:nth(rand:uniform(3), [rock, paper, scissors]),
+            MasterProcess ! {match_move, GameId, self(), Move},
+            player_engine(Name, Credits, MasterProcess,Players)
+
+    after 10 + random:uniform(101)->
+        OtherPlayers = lists:filter(fun(P) -> P =/= Name end,Players),
+        if OtherPlayers =/= [] ->
+            RandomOpponent = lists:nth(rand:uniform(length(OtherPlayers)), OtherPlayers),
+            self() ! {play_game, RandomOpponent},
+            player_engine(Name, Credits, MasterProcess,Players);
+
+        true ->
+            timer:sleep(101)
+        end,
+        player_engine(Name, Credits, MasterProcess,Players)
     end.
 
-random_move() ->
-    case random:uniform(3) of
-        1 -> rock;
-        2 -> paper;
-        3 -> scissors
-    end.
-
-random_player(Name, Players) ->
-    FilteredPlayers = lists:filter(fun(Player) -> Player =/= Name end, Players),
-    RandomIndex = rand:uniform(length(FilteredPlayers)),
-    lists:nth(RandomIndex, FilteredPlayers).
+lookup_name_by_process_id(Pid) ->
+    NameList = erlang:registered(),
+    lists:foldl(
+        fun(Name, Acc) ->
+            case whereis(Name) of
+                Pid ->
+                    {ok, Name};
+                _ ->
+                    Acc
+            end
+        end,
+        {error, not_found},
+        NameList
+    ).
