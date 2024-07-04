@@ -82,8 +82,8 @@ declare_winner([Winner], PlayerData, DisqualifiedBacklog, GameID) ->
 
 %% Handles the result of a game.
 handle_game_result(GameId, Result, PlayerData, Players, MasterProcess, GameResults, DisqualifiedBacklog, MovesRecord) ->
-    NewGameResults = [{GameId, Result} | GameResults],
-    game_engine(PlayerData, Players, MasterProcess, GameId, NewGameResults, DisqualifiedBacklog, MovesRecord).
+    MainResults = [{GameId, Result} | GameResults],
+    game_engine(PlayerData, Players, MasterProcess, GameId, MainResults, DisqualifiedBacklog, MovesRecord).
 
 %% Updates the credits of a player.
 update_player_credits(LostPlayerName, NewCredits, PlayerData, Players, MasterProcess, GameID, GameResults, DisqualifiedBacklog, MovesRecord) ->
@@ -108,15 +108,15 @@ strategy_handler(PlayerData, GameID, PlayerPid, Move, Players, MasterProcess, Ga
     case lists:keyfind(GameID, 1, GameResults) of
         false ->
             % First move in a new game
-            NewGameResults = [{GameID, [{PlayerPid, Move}]} | GameResults],
-            game_engine(PlayerData, Players, MasterProcess, GameID, NewGameResults, DisqualifiedBacklog, MovesRecord);
+            MainResults = [{GameID, [{PlayerPid, Move}]} | GameResults],
+            game_engine(PlayerData, Players, MasterProcess, GameID, MainResults, DisqualifiedBacklog, MovesRecord);
         {GameID, Moves} ->
             % Retrieve existing moves and add the new move
-            [{Player1ProcessID, Move1}, {Player2ProcessID, Move2}] = [lists:nth(1, Moves), {PlayerPid, Move}],
-            NewMovesRecord = [{GameID, {Player1ProcessID, Move1}, {Player2ProcessID, Move2}} | MovesRecord],
+            [{Player1ProcessID, P1Move}, {Player2ProcessID, P2Move}] = [lists:nth(1, Moves), {PlayerPid, Move}],
+            PreviousMoves = [{GameID, {Player1ProcessID, P1Move}, {Player2ProcessID, P2Move}} | MovesRecord],
             
             % Determine the winner based on the moves
-            Result = determine_winner(Move1, Move2),
+            Result = get_winner(P1Move, P2Move),
             
             % Lookup player names by their process IDs
             {_, Player1Name} = lookup_name_by_process_id(Player1ProcessID),
@@ -127,16 +127,16 @@ strategy_handler(PlayerData, GameID, PlayerPid, Move, Players, MasterProcess, Ga
                 tie ->
                     self() ! {game_tied, GameID, Player1ProcessID, Player2ProcessID};
                 lost ->
-                    Player1ProcessID ! {main_result, GameID, Result, Player1Name, Move1, Player2Name, Move2, Player1Name, NewMovesRecord};
+                    Player1ProcessID ! {main_result, GameID, Result, Player1Name, P1Move, Player2Name, P2Move, Player1Name, PreviousMoves};
                 _ ->
-                    Player2ProcessID ! {main_result, GameID, lost, Player1Name, Move1, Player2Name, Move2, Player2Name, NewMovesRecord}
+                    Player2ProcessID ! {main_result, GameID, lost, Player1Name, P1Move, Player2Name, P2Move, Player2Name, PreviousMoves}
             end,
-            NewGameResults = lists:keydelete(GameID, 1, GameResults),
-            game_engine(PlayerData, Players, MasterProcess, GameID, NewGameResults, DisqualifiedBacklog, NewMovesRecord)
+            MainResults = lists:keydelete(GameID, 1, GameResults),
+            game_engine(PlayerData, Players, MasterProcess, GameID, MainResults, DisqualifiedBacklog, PreviousMoves)
     end.
 
 
-determine_winner(Player1Move, Player2Move) ->
+get_winner(Player1Move, Player2Move) ->
     case {Player1Move, Player2Move} of
         {rock, scissors} -> win;
         {scissors, paper} -> win;

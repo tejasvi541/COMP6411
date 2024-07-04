@@ -30,10 +30,10 @@ player_engine(Name, Credits, MasterProcess,Players) ->
 
         {main_result, GameId, Result, P1Name, M1, P2Name, M2, LostPName, MoveRecords} ->
             UpdatedCredits = if Result =:= lost -> Credits - 1; true -> Credits end,
-            RelevantGames = lists:filter(fun({GID, {_,_}, {_,_}}) -> GID == GameId end, MoveRecords),
-            NumOfGames = length(RelevantGames),
+            RelevantGames = lists:filter(fun({GameIDNum, {_,_}, {_,_}}) -> GameIDNum == GameId end, MoveRecords),
+            TotalGames = length(RelevantGames),
 
-            case NumOfGames > 1 of
+            case TotalGames > 1 of
                 true ->
                     GameDetailsList = lists:foldl(
                         fun({_, {P1, P1M}, {P2, P2M}}, Acc) ->
@@ -79,16 +79,8 @@ player_engine(Name, Credits, MasterProcess,Players) ->
     end.
 
 lookup_name_by_process_id(Pid) ->
-    NameList = erlang:registered(),
     lists:foldl(
-        fun(Name, Acc) ->
-            case whereis(Name) of
-                Pid ->
-                    {ok, Name};
-                _ ->
-                    Acc
-            end
-        end,
+        fun(Name, Acc) -> case whereis(Name) of Pid -> {ok, Name}; _ -> Acc end end,
         {error, not_found},
-        NameList
+        erlang:registered()
     ).
